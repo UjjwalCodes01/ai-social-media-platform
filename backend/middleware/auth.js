@@ -1,24 +1,8 @@
 const jwt = require('jsonwebtoken');
-
-// Mock users database (in production, this would come from your database)
-const users = [
-  {
-    id: 1,
-    name: 'John Doe',
-    email: 'john@example.com',
-    password: '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LjYFnvBUrx6/yE3D6',
-    createdAt: new Date('2025-09-20'),
-    profileImage: null,
-    connectedAccounts: {
-      twitter: { connected: true, username: '@johndoe' },
-      linkedin: { connected: true, username: 'John Doe' },
-      instagram: { connected: false, username: null }
-    }
-  }
-];
+const User = require('../models/User');
 
 // Auth middleware
-const authenticateToken = (req, res, next) => {
+const authenticateToken = async (req, res, next) => {
   const authHeader = req.header('Authorization');
   const token = authHeader && authHeader.startsWith('Bearer ') 
     ? authHeader.substring(7) 
@@ -35,8 +19,8 @@ const authenticateToken = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    // Find user in mock database
-    const user = users.find(u => u.id === decoded.userId);
+    // Find user in database
+    const user = await User.findById(decoded.userId);
     
     if (!user) {
       return res.status(401).json({
@@ -48,7 +32,7 @@ const authenticateToken = (req, res, next) => {
     
     // Attach user info to request
     req.user = user;
-    req.userId = user.id;
+    req.userId = user._id;
     next();
   } catch (error) {
     console.error('Token verification error:', error);

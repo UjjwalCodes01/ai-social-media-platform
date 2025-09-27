@@ -20,7 +20,7 @@ const authenticateToken = (req, res, next) => {
 };
 
 // @route   GET /api/analytics/overview
-// @desc    Get analytics overview from real database
+// @desc    Get analytics overview
 // @access  Private
 router.get('/overview', authenticateToken, async (req, res) => {
   try {
@@ -61,19 +61,8 @@ router.get('/overview', authenticateToken, async (req, res) => {
     const totalEngagement = posts.reduce((sum, post) => sum + (post.engagement || 0), 0);
     const totalReach = posts.reduce((sum, post) => sum + (post.reach || 0), 0);
     const totalImpressions = posts.reduce((sum, post) => sum + (post.impressions || 0), 0);
-    const totalLikes = posts.reduce((sum, post) => sum + (post.likes || 0), 0);
-    const totalShares = posts.reduce((sum, post) => sum + (post.shares || 0), 0);
-    const totalComments = posts.reduce((sum, post) => sum + (post.comments || 0), 0);
-    
-    // Get follower count from user's connected platforms
-    const totalFollowers = user?.connectedPlatforms 
-      ? Object.values(user.connectedPlatforms).reduce((sum, platform) => 
-          sum + (platform.followerCount || 0), 0)
-      : 0;
-    
-    const engagementRate = totalImpressions > 0 
-      ? ((totalEngagement / totalImpressions) * 100).toFixed(2) 
-      : 0;
+    const totalFollowers = user?.socialAccounts?.reduce((sum, account) => sum + (account.followers || 0), 0) || 0;
+    const engagementRate = totalReach > 0 ? ((totalEngagement / totalReach) * 100).toFixed(2) : 0;
     const avgPostReach = totalPosts > 0 ? Math.floor(totalReach / totalPosts) : 0;
 
     // Calculate previous period for comparison
@@ -91,12 +80,6 @@ router.get('/overview', authenticateToken, async (req, res) => {
     const previousEngagement = previousPosts.reduce((sum, post) => sum + (post.engagement || 0), 0);
     const previousReach = previousPosts.reduce((sum, post) => sum + (post.reach || 0), 0);
     const previousImpressions = previousPosts.reduce((sum, post) => sum + (post.impressions || 0), 0);
-    const previousEngagementRate = previousImpressions > 0 
-      ? ((previousEngagement / previousImpressions) * 100).toFixed(2) 
-      : 0;
-    const previousAvgPostReach = previousPosts.length > 0 
-      ? Math.floor(previousReach / previousPosts.length) 
-      : 0;
 
     res.json({
       success: true,
@@ -113,9 +96,7 @@ router.get('/overview', authenticateToken, async (req, res) => {
           totalEngagement: previousEngagement,
           totalReach: previousReach,
           totalImpressions: previousImpressions,
-          totalFollowers,
-          engagementRate: parseFloat(previousEngagementRate),
-          avgPostReach: previousAvgPostReach
+          engagementRate: previousReach > 0 ? ((previousEngagement / previousReach) * 100).toFixed(2) : 0
         }
       }
     });
@@ -124,14 +105,13 @@ router.get('/overview', authenticateToken, async (req, res) => {
     console.error('Analytics overview error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message
+      message: 'Server error'
     });
   }
 });
 
 // @route   GET /api/analytics/platform-comparison
-// @desc    Get platform engagement comparison from real database
+// @desc    Get platform engagement comparison
 // @access  Private
 router.get('/platform-comparison', authenticateToken, async (req, res) => {
   try {
@@ -177,34 +157,30 @@ router.get('/platform-comparison', authenticateToken, async (req, res) => {
           engagement: 0,
           reach: 0,
           followers: 0,
-          posts: 0,
-          impressions: 0
+          posts: 0
         };
       }
       
       platformData[platform].totalEngagement += post.engagement || 0;
       platformData[platform].engagement += post.engagement || 0;
       platformData[platform].reach += post.reach || 0;
-      platformData[platform].impressions += post.impressions || 0;
       platformData[platform].posts += 1;
     });
 
-    // Get follower counts from user's connected platforms
+    // Get follower counts from user's social accounts
     const user = await User.findById(req.userId);
-    if (user?.connectedPlatforms) {
-      Object.keys(platformData).forEach(platform => {
-        const platformInfo = user.connectedPlatforms[platform];
-        if (platformInfo) {
-          platformData[platform].followers = platformInfo.followerCount || 0;
+    if (user?.socialAccounts) {
+      user.socialAccounts.forEach(account => {
+        const platform = account.platform?.toLowerCase();
+        if (platformData[platform]) {
+          platformData[platform].followers = account.followers || 0;
         }
       });
     }
 
     // Calculate engagement rates
     Object.values(platformData).forEach(data => {
-      data.engagementRate = data.impressions > 0 
-        ? ((data.engagement / data.impressions) * 100).toFixed(1) 
-        : '0.0';
+      data.engagementRate = data.reach > 0 ? ((data.engagement / data.reach) * 100).toFixed(1) : '0.0';
     });
 
     res.json({
@@ -217,14 +193,13 @@ router.get('/platform-comparison', authenticateToken, async (req, res) => {
     console.error('Platform comparison error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message
+      message: 'Server error'
     });
   }
 });
 
 // @route   GET /api/analytics/top-posts
-// @desc    Get top performing posts from real database
+// @desc    Get top performing posts
 // @access  Private
 router.get('/top-posts', authenticateToken, async (req, res) => {
   try {
@@ -292,8 +267,7 @@ router.get('/top-posts', authenticateToken, async (req, res) => {
     console.error('Top posts error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message
+      message: 'Server error'
     });
   }
 });

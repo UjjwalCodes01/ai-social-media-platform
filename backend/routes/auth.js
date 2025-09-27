@@ -307,4 +307,270 @@ router.get('/oauth/:platform', (req, res) => {
   }
 });
 
+// Real OAuth routes for social media platforms
+
+// @route   GET /api/auth/twitter
+// @desc    Initiate Twitter OAuth 2.0 flow
+// @access  Public
+router.get('/twitter', (req, res) => {
+  const { redirect_uri } = req.query;
+  
+  // Twitter OAuth 2.0 configuration
+  const CLIENT_ID = process.env.TWITTER_CLIENT_ID;
+  const REDIRECT_URI = process.env.TWITTER_REDIRECT_URI || 'http://localhost:5000/api/auth/twitter/callback';
+  
+  if (!CLIENT_ID) {
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Twitter OAuth not configured. Please set TWITTER_CLIENT_ID in environment variables.' 
+    });
+  }
+  
+  // Store redirect_uri in session or state parameter
+  const state = Buffer.from(JSON.stringify({ 
+    platform: 'Twitter',
+    redirect_uri: redirect_uri || 'http://localhost:3000/dashboard'
+  })).toString('base64');
+  
+  // Twitter OAuth 2.0 authorization URL
+  const authUrl = `https://twitter.com/i/oauth2/authorize?` +
+    `response_type=code&` +
+    `client_id=${CLIENT_ID}&` +
+    `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+    `scope=tweet.read tweet.write users.read offline.access&` +
+    `state=${state}&` +
+    `code_challenge=challenge&` +
+    `code_challenge_method=plain`;
+    
+  res.redirect(authUrl);
+});
+
+// @route   GET /api/auth/linkedin
+// @desc    Initiate LinkedIn OAuth 2.0 flow
+// @access  Public
+router.get('/linkedin', (req, res) => {
+  const { redirect_uri } = req.query;
+  
+  const CLIENT_ID = process.env.LINKEDIN_CLIENT_ID;
+  const REDIRECT_URI = process.env.LINKEDIN_REDIRECT_URI || 'http://localhost:5000/api/auth/linkedin/callback';
+  
+  if (!CLIENT_ID) {
+    return res.status(500).json({ 
+      success: false, 
+      message: 'LinkedIn OAuth not configured. Please set LINKEDIN_CLIENT_ID in environment variables.' 
+    });
+  }
+  
+  const state = Buffer.from(JSON.stringify({ 
+    platform: 'LinkedIn',
+    redirect_uri: redirect_uri || 'http://localhost:3000/dashboard'
+  })).toString('base64');
+  
+  const authUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
+    `response_type=code&` +
+    `client_id=${CLIENT_ID}&` +
+    `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+    `scope=r_liteprofile r_emailaddress w_member_social&` +
+    `state=${state}`;
+    
+  res.redirect(authUrl);
+});
+
+// @route   GET /api/auth/instagram
+// @desc    Initiate Instagram Basic Display OAuth flow
+// @access  Public
+router.get('/instagram', (req, res) => {
+  const { redirect_uri } = req.query;
+  
+  const CLIENT_ID = process.env.INSTAGRAM_CLIENT_ID;
+  const REDIRECT_URI = process.env.INSTAGRAM_REDIRECT_URI || 'http://localhost:5000/api/auth/instagram/callback';
+  
+  if (!CLIENT_ID) {
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Instagram OAuth not configured. Please set INSTAGRAM_CLIENT_ID in environment variables.' 
+    });
+  }
+  
+  const state = Buffer.from(JSON.stringify({ 
+    platform: 'Instagram',
+    redirect_uri: redirect_uri || 'http://localhost:3000/dashboard'
+  })).toString('base64');
+  
+  const authUrl = `https://api.instagram.com/oauth/authorize?` +
+    `client_id=${CLIENT_ID}&` +
+    `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+    `scope=user_profile,user_media&` +
+    `response_type=code&` +
+    `state=${state}`;
+    
+  res.redirect(authUrl);
+});
+
+// @route   GET /api/auth/facebook
+// @desc    Initiate Facebook Login OAuth flow
+// @access  Public
+router.get('/facebook', (req, res) => {
+  const { redirect_uri } = req.query;
+  
+  const CLIENT_ID = process.env.FACEBOOK_APP_ID;
+  const REDIRECT_URI = process.env.FACEBOOK_REDIRECT_URI || 'http://localhost:5000/api/auth/facebook/callback';
+  
+  if (!CLIENT_ID) {
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Facebook OAuth not configured. Please set FACEBOOK_APP_ID in environment variables.' 
+    });
+  }
+  
+  const state = Buffer.from(JSON.stringify({ 
+    platform: 'Facebook',
+    redirect_uri: redirect_uri || 'http://localhost:3000/dashboard'
+  })).toString('base64');
+  
+  const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?` +
+    `client_id=${CLIENT_ID}&` +
+    `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+    `scope=pages_manage_posts,pages_read_engagement,pages_show_list&` +
+    `response_type=code&` +
+    `state=${state}`;
+    
+  res.redirect(authUrl);
+});
+
+// OAuth Callback handlers
+// @route   GET /api/auth/twitter/callback
+router.get('/twitter/callback', async (req, res) => {
+  const { code, state } = req.query;
+  
+  try {
+    const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
+    
+    if (code) {
+      // Exchange code for access token
+      const tokenResponse = await fetch('https://api.twitter.com/2/oauth2/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': `Basic ${Buffer.from(`${process.env.TWITTER_CLIENT_ID}:${process.env.TWITTER_CLIENT_SECRET}`).toString('base64')}`,
+        },
+        body: new URLSearchParams({
+          code,
+          grant_type: 'authorization_code',
+          client_id: process.env.TWITTER_CLIENT_ID,
+          redirect_uri: process.env.TWITTER_REDIRECT_URI || 'http://localhost:5000/api/auth/twitter/callback',
+          code_verifier: 'challenge'
+        })
+      });
+      
+      const tokenData = await tokenResponse.json();
+      
+      if (tokenData.access_token) {
+        // Redirect back to frontend with success
+        return res.redirect(`${stateData.redirect_uri}?code=${tokenData.access_token}&state=Twitter`);
+      }
+    }
+    
+    res.redirect(`${stateData.redirect_uri}?error=oauth_failed`);
+  } catch (error) {
+    console.error('Twitter OAuth callback error:', error);
+    res.redirect(`${req.query.redirect_uri || 'http://localhost:3000/dashboard'}?error=oauth_error`);
+  }
+});
+
+// Similar callback handlers for other platforms...
+router.get('/linkedin/callback', async (req, res) => {
+  const { code, state } = req.query;
+  
+  try {
+    const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
+    
+    if (code) {
+      const tokenResponse = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: process.env.LINKEDIN_REDIRECT_URI || 'http://localhost:5000/api/auth/linkedin/callback',
+          client_id: process.env.LINKEDIN_CLIENT_ID,
+          client_secret: process.env.LINKEDIN_CLIENT_SECRET
+        })
+      });
+      
+      const tokenData = await tokenResponse.json();
+      
+      if (tokenData.access_token) {
+        return res.redirect(`${stateData.redirect_uri}?code=${tokenData.access_token}&state=LinkedIn`);
+      }
+    }
+    
+    res.redirect(`${stateData.redirect_uri}?error=oauth_failed`);
+  } catch (error) {
+    console.error('LinkedIn OAuth callback error:', error);
+    res.redirect(`${req.query.redirect_uri || 'http://localhost:3000/dashboard'}?error=oauth_error`);
+  }
+});
+
+router.get('/instagram/callback', async (req, res) => {
+  const { code, state } = req.query;
+  
+  try {
+    const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
+    
+    if (code) {
+      const tokenResponse = await fetch('https://api.instagram.com/oauth/access_token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: process.env.INSTAGRAM_CLIENT_ID,
+          client_secret: process.env.INSTAGRAM_CLIENT_SECRET,
+          grant_type: 'authorization_code',
+          redirect_uri: process.env.INSTAGRAM_REDIRECT_URI || 'http://localhost:5000/api/auth/instagram/callback',
+          code
+        })
+      });
+      
+      const tokenData = await tokenResponse.json();
+      
+      if (tokenData.access_token) {
+        return res.redirect(`${stateData.redirect_uri}?code=${tokenData.access_token}&state=Instagram`);
+      }
+    }
+    
+    res.redirect(`${stateData.redirect_uri}?error=oauth_failed`);
+  } catch (error) {
+    console.error('Instagram OAuth callback error:', error);
+    res.redirect(`${req.query.redirect_uri || 'http://localhost:3000/dashboard'}?error=oauth_error`);
+  }
+});
+
+router.get('/facebook/callback', async (req, res) => {
+  const { code, state } = req.query;
+  
+  try {
+    const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
+    
+    if (code) {
+      const tokenResponse = await fetch(`https://graph.facebook.com/v18.0/oauth/access_token?` +
+        `client_id=${process.env.FACEBOOK_APP_ID}&` +
+        `redirect_uri=${encodeURIComponent(process.env.FACEBOOK_REDIRECT_URI || 'http://localhost:5000/api/auth/facebook/callback')}&` +
+        `client_secret=${process.env.FACEBOOK_APP_SECRET}&` +
+        `code=${code}`
+      );
+      
+      const tokenData = await tokenResponse.json();
+      
+      if (tokenData.access_token) {
+        return res.redirect(`${stateData.redirect_uri}?code=${tokenData.access_token}&state=Facebook`);
+      }
+    }
+    
+    res.redirect(`${stateData.redirect_uri}?error=oauth_failed`);
+  } catch (error) {
+    console.error('Facebook OAuth callback error:', error);
+    res.redirect(`${req.query.redirect_uri || 'http://localhost:3000/dashboard'}?error=oauth_error`);
+  }
+});
+
 module.exports = router;
