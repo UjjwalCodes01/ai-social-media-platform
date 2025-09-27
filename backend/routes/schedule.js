@@ -2,41 +2,9 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const cron = require('node-cron');
 const { body, validationResult } = require('express-validator');
+const Post = require('../models/Post');
+const User = require('../models/User');
 const router = express.Router();
-
-// Mock scheduled posts storage
-let scheduledPosts = [
-  {
-    id: 1,
-    userId: 1,
-    content: "🚀 Just launched our new AI-powered analytics dashboard! The future of social media management is here...",
-    platform: 'twitter',
-    scheduledDate: '2025-09-27',
-    scheduledTime: '09:00',
-    status: 'scheduled',
-    createdAt: new Date('2025-09-26T10:00:00Z')
-  },
-  {
-    id: 2,
-    userId: 1,
-    content: "The key to successful content marketing: Understanding your audience, creating value, and staying consistent...",
-    platform: 'linkedin',
-    scheduledDate: '2025-09-27',
-    scheduledTime: '14:30',
-    status: 'scheduled',
-    createdAt: new Date('2025-09-26T11:00:00Z')
-  },
-  {
-    id: 3,
-    userId: 1,
-    content: "Pro tip: The best time to post on social media varies by platform and audience. Let AI help you find the optimal timing...",
-    platform: 'twitter',
-    scheduledDate: '2025-09-28',
-    scheduledTime: '11:15',
-    status: 'scheduled',
-    createdAt: new Date('2025-09-26T12:00:00Z')
-  }
-];
 
 // Auth middleware
 const authenticateToken = (req, res, next) => {
@@ -64,50 +32,38 @@ const authenticateToken = (req, res, next) => {
 // @route   GET /api/schedule/posts
 // @desc    Get scheduled posts for user
 // @access  Private
-router.get('/posts', authenticateToken, (req, res) => {
+router.get('/posts', authenticateToken, async (req, res) => {
   try {
-    const { status, platform, startDate, endDate, limit, offset } = req.query;
+    const { status, platform, startDate, endDate, limit = 20, offset = 0 } = req.query;
     
-    let userPosts = scheduledPosts.filter(post => post.userId === req.userId);
+    // Build query filter
+    const filter = { 
+      user: req.userId,
+      status: 'scheduled'
+    };
     
-    // Filter by status
-    if (status) {
-      userPosts = userPosts.filter(post => post.status === status);
+    if (status) filter.status = status;
+    if (platform) filter.platforms = { $in: [platform] };
+    
+    if (startDate || endDate) {
+      filter.scheduledFor = {};
+      if (startDate) filter.scheduledFor.$gte = new Date(startDate);
+      if (endDate) filter.scheduledFor.$lte = new Date(endDate);
     }
     
-    // Filter by platform
-    if (platform) {
-      userPosts = userPosts.filter(post => post.platform === platform);
-    }
+    const userPosts = await Post.find(filter)
+      .limit(parseInt(limit))
+      .skip(parseInt(offset))
+      .sort({ scheduledFor: 1 });
     
-    // Filter by date range
-    if (startDate) {
-      userPosts = userPosts.filter(post => post.scheduledDate >= startDate);
-    }
-    
-    if (endDate) {
-      userPosts = userPosts.filter(post => post.scheduledDate <= endDate);
-    }
-    
-    // Sort by scheduled date and time
-    userPosts.sort((a, b) => {
-      const dateTimeA = new Date(`${a.scheduledDate}T${a.scheduledTime}`);
-      const dateTimeB = new Date(`${b.scheduledDate}T${b.scheduledTime}`);
-      return dateTimeA - dateTimeB;
-    });
-    
-    // Pagination
-    const limitNum = parseInt(limit) || 20;
-    const offsetNum = parseInt(offset) || 0;
-    
-    const paginatedPosts = userPosts.slice(offsetNum, offsetNum + limitNum);
+    const total = await Post.countDocuments(filter);
     
     res.json({
       success: true,
-      posts: paginatedPosts,
-      total: userPosts.length,
-      limit: limitNum,
-      offset: offsetNum
+      posts: userPosts,
+      total,
+      limit: parseInt(limit),
+      offset: parseInt(offset)
     });
     
   } catch (error) {
@@ -346,24 +302,21 @@ router.get('/calendar', authenticateToken, (req, res) => {
 // @route   GET /api/schedule/upcoming
 // @desc    Get upcoming posts (next 7 days)
 // @access  Private
-router.get('/upcoming', authenticateToken, (req, res) => {
+router.get('/upcoming', authenticateToken, async (req, res) => {
   try {
     const now = new Date();
     const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     
-    const upcomingPosts = scheduledPosts
-      .filter(post => {
-        if (post.userId !== req.userId || post.status !== 'scheduled') return false;
-        
-        const postDateTime = new Date(`${post.scheduledDate}T${post.scheduledTime}`);
-        return postDateTime >= now && postDateTime <= sevenDaysFromNow;
-      })
-      .sort((a, b) => {
-        const dateTimeA = new Date(`${a.scheduledDate}T${a.scheduledTime}`);
-        const dateTimeB = new Date(`${b.scheduledDate}T${b.scheduledTime}`);
-        return dateTimeA - dateTimeB;
-      })
-      .slice(0, 10); // Limit to 10 posts
+    const upcomingPosts = await Post.find({
+      user: req.userId,
+      status: 'scheduled',
+      scheduledFor: {
+        $gte: now,
+        $lte: sevenDaysFromNow
+      }
+    })
+    .sort({ scheduledFor: 1 })
+    .limit(10);
     
     res.json({
       success: true,

@@ -2,24 +2,8 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
+const User = require('../models/User');
 const router = express.Router();
-
-// Mock user database (replace with real database)
-let users = [
-  {
-    id: 1,
-    name: 'John Doe',
-    email: 'john@example.com',
-    password: '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LjYFnvBUrx6/yE3D6', // password123
-    createdAt: new Date('2025-09-20'),
-    profileImage: null,
-    connectedAccounts: {
-      twitter: { connected: true, username: '@johndoe' },
-      linkedin: { connected: true, username: 'John Doe' },
-      instagram: { connected: false, username: null }
-    }
-  }
-];
 
 // Generate JWT Token
 const generateToken = (userId) => {
@@ -49,7 +33,7 @@ router.post('/register', [
     const { name, email, password } = req.body;
 
     // Check if user already exists
-    const existingUser = users.find(user => user.email === email);
+    const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -57,40 +41,26 @@ router.post('/register', [
       });
     }
 
-    // Hash password
-    const salt = await bcrypt.genSalt(12);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Create new user
-    const newUser = {
-      id: users.length + 1,
+    // Create new user (password will be hashed automatically by the pre-save middleware)
+    const user = await User.create({
       name,
       email,
-      password: hashedPassword,
-      createdAt: new Date(),
-      profileImage: null,
-      connectedAccounts: {
-        twitter: { connected: false, username: null },
-        linkedin: { connected: false, username: null },
-        instagram: { connected: false, username: null }
-      }
-    };
-
-    users.push(newUser);
+      password
+    });
 
     // Generate token
-    const token = generateToken(newUser.id);
+    const token = generateToken(user._id);
 
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
       token,
       user: {
-        id: newUser.id,
-        name: newUser.name,
-        email: newUser.email,
-        createdAt: newUser.createdAt,
-        connectedAccounts: newUser.connectedAccounts
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        createdAt: user.createdAt,
+        connectedAccounts: user.connectedAccounts
       }
     });
 
@@ -122,8 +92,8 @@ router.post('/login', [
 
     const { email, password } = req.body;
 
-    // Find user
-    const user = users.find(u => u.email === email);
+    // Find user and include password for comparison
+    const user = await User.findOne({ email }).select('+password');
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -132,7 +102,7 @@ router.post('/login', [
     }
 
     // Check password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await user.matchPassword(password);
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
@@ -141,14 +111,14 @@ router.post('/login', [
     }
 
     // Generate token
-    const token = generateToken(user.id);
+    const token = generateToken(user._id);
 
     res.json({
       success: true,
       message: 'Login successful',
       token,
       user: {
-        id: user.id,
+        id: user._id,
         name: user.name,
         email: user.email,
         createdAt: user.createdAt,

@@ -1,27 +1,11 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
+const User = require('../models/User');
 const router = express.Router();
 
-// Mock user database (same as auth.js - in real app, use shared database)
-let users = [
-  {
-    id: 1,
-    name: 'John Doe',
-    email: 'john@example.com',
-    password: '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LjYFnvBUrx6/yE3D6',
-    createdAt: new Date('2025-09-20'),
-    profileImage: null,
-    connectedAccounts: {
-      twitter: { connected: true, username: '@johndoe' },
-      linkedin: { connected: true, username: 'John Doe' },
-      instagram: { connected: false, username: null }
-    }
-  }
-];
-
 // Auth middleware
-const authenticateToken = (req, res, next) => {
+const authenticateToken = async (req, res, next) => {
   const token = req.header('Authorization')?.replace('Bearer ', '');
   
   if (!token) {
@@ -33,7 +17,7 @@ const authenticateToken = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = users.find(u => u.id === decoded.userId);
+    const user = await User.findById(decoded.userId);
     
     if (!user) {
       return res.status(401).json({
@@ -61,10 +45,10 @@ router.get('/profile', authenticateToken, (req, res) => {
     res.json({
       success: true,
       user: {
-        id: user.id,
+        id: user._id,
         name: user.name,
         email: user.email,
-        profileImage: user.profileImage,
+        profileImage: user.profileImage || null,
         createdAt: user.createdAt,
         connectedAccounts: user.connectedAccounts
       }
@@ -249,6 +233,60 @@ router.post('/disconnect-account', authenticateToken, [
 
   } catch (error) {
     console.error('Account disconnection error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// @route   PUT /api/user/change-password
+// @desc    Change user password
+// @access  Private
+router.put('/change-password', authenticateToken, [
+  body('currentPassword', 'Current password is required').notEmpty(),
+  body('newPassword', 'New password must be at least 6 characters long').isLength({ min: 6 })
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: errors.array()
+    });
+  }
+
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const user = req.user;
+
+    // Verify current password
+    const bcrypt = require('bcryptjs');
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password is incorrect'
+      });
+    }
+
+    // Hash new password
+    const saltRounds = 10;
+    const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
+
+    // Update user password
+    await User.findByIdAndUpdate(user._id, { 
+      password: hashedNewPassword 
+    });
+
+    res.json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+
+  } catch (error) {
+    console.error('Password change error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error'
