@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { userAPI, scheduleAPI, socialAPI } from '@/lib/api';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -29,7 +28,6 @@ export default function Dashboard() {
   const { user, logout } = useAuth();
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
   const [upcomingPosts, setUpcomingPosts] = useState<UpcomingPost[]>([]);
-  const [loading, setLoading] = useState(true);
   const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null);
 
   useEffect(() => {
@@ -98,8 +96,6 @@ export default function Dashboard() {
         }
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error);
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -107,7 +103,7 @@ export default function Dashboard() {
     fetchDashboardData();
   }, []);
 
-  const handleConnectAccount = async (platform: string, icon: string) => {
+  const handleConnectAccount = async (platform: string) => {
     if (connectingPlatform) return;
     
     setConnectingPlatform(platform);
@@ -247,7 +243,7 @@ export default function Dashboard() {
                 Welcome, {user?.name || 'User'}! 👋
               </h1>
               <p className="text-gray-300 mt-1">
-                Here's your social media overview for today
+                Here&apos;s your social media overview for today
               </p>
             </div>
             <nav className="flex space-x-4">
@@ -339,7 +335,7 @@ export default function Dashboard() {
                       </button>
                     ) : (
                       <button
-                        onClick={() => handleConnectAccount(account.platform, account.icon)}
+                        onClick={() => handleConnectAccount(account.platform)}
                         className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors"
                       >
                         Connect

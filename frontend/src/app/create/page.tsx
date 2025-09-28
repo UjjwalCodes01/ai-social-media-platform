@@ -19,6 +19,13 @@ interface Message {
   };
 }
 
+interface GeneratedContent {
+  platform: string;
+  content: string;
+  hashtags?: string[];
+  mediaType?: 'text' | 'image' | 'video';
+}
+
 const suggestedPrompts = [
   "Generate a tweet about a new product launch for my coffee shop",
   "Create a LinkedIn post about productivity tips for remote work",
@@ -28,7 +35,6 @@ const suggestedPrompts = [
 ];
 
 export default function CreateContentPage() {
-  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -65,27 +71,6 @@ export default function CreateContentPage() {
     setIsLoading(true);
 
     try {
-      // Debug: Check if user is authenticated
-      console.log('User authenticated:', !!user);
-      console.log('User details:', user);
-      console.log('Sending prompt:', userMessage.content);
-      
-      // Check if we have a token
-      const token = localStorage.getItem('token');
-      console.log('Token exists:', !!token);
-      if (token) {
-        console.log('Token preview:', token.substring(0, 20) + '...');
-      }
-      
-      // Test backend connectivity first
-      try {
-        const healthResponse = await fetch('http://localhost:5000/api/health');
-        const healthData = await healthResponse.json();
-        console.log('Backend health check:', healthData);
-      } catch (healthError) {
-        console.error('Backend unreachable:', healthError);
-      }
-      
       // Call real AI API for content generation
       const response = await aiAPI.generateContent(userMessage.content, 'general');
       
@@ -138,12 +123,14 @@ export default function CreateContentPage() {
     inputRef.current?.focus();
   };
 
-  const handleSaveAsDraft = (content: any) => {
+  const handleSaveAsDraft = (content: GeneratedContent | undefined) => {
+    if (!content) return;
     // TODO: Implement save as draft functionality
     alert('Content saved as draft! (This would save to your drafts in a real app)');
   };
 
-  const handleAddToCalendar = (content: any) => {
+  const handleAddToCalendar = (content: GeneratedContent | undefined) => {
+    if (!content) return;
     // TODO: Implement add to calendar functionality
     alert('Redirecting to calendar to schedule this post! (This would open the calendar in a real app)');
   };

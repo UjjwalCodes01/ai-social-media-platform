@@ -15,6 +15,24 @@ interface AnalyticsMetrics {
   totalFollowers: number;
   engagementRate: number;
   avgPostReach: number;
+  previousPeriod?: {
+    totalEngagement: number;
+    totalReach: number;
+    totalImpressions: number;
+    totalFollowers: number;
+    engagementRate: number;
+    avgPostReach: number;
+  };
+}
+
+interface PlatformData {
+  name: string;
+  totalEngagement: number;
+  engagement: number;
+  reach: number;
+  followers: number;
+  posts: number;
+  engagementRate: string;
 }
 
 interface EngagementData {
@@ -24,7 +42,7 @@ interface EngagementData {
 }
 
 interface TopPost {
-  id: number;
+  id: number | string;
   content: string;
   platform: string;
   engagement: number;
@@ -108,16 +126,16 @@ export default function AnalyticsPage() {
         // Load platform comparison data - only real data
         const platformResponse = await analyticsAPI.getPlatformComparison(selectedTimeRange)
         if (platformResponse.success && platformResponse.data) {
-          let platformData = platformResponse.data
+          let platformData: PlatformData[] = platformResponse.data
           
           // Filter by selected platform if not 'all'
           if (selectedPlatform !== 'all') {
-            platformData = platformData.filter((platform: any) => 
+            platformData = platformData.filter((platform: PlatformData) => 
               platform.name.toLowerCase() === selectedPlatform.toLowerCase()
             )
           }
           
-          const filteredData = platformData.map((platform: any) => ({
+          const filteredData = platformData.map((platform: PlatformData) => ({
             platform: platform.name,
             engagement: platform.totalEngagement || 0,
             color: platformColors[platform.name.toLowerCase() as keyof typeof platformColors] || 'bg-gray-500'
@@ -129,7 +147,11 @@ export default function AnalyticsPage() {
         }
 
         // Load top posts - only real data
-        const topPostsParams: any = { 
+        const topPostsParams: {
+          limit: number;
+          timeRange: string;
+          platform?: string;
+        } = { 
           limit: 5, 
           timeRange: selectedTimeRange 
         }
@@ -140,7 +162,7 @@ export default function AnalyticsPage() {
         
         const postsResponse = await analyticsAPI.getTopPosts(topPostsParams)
         if (postsResponse.success && postsResponse.data) {
-          const postsData = postsResponse.data.map((post: any) => ({
+          const postsData = postsResponse.data.map((post: TopPost & { scheduledDate?: string; createdAt?: string }) => ({
             id: post.id,
             content: post.content,
             platform: post.platform,
@@ -149,7 +171,7 @@ export default function AnalyticsPage() {
             likes: post.likes || 0,
             shares: post.shares || 0,
             comments: post.comments || 0,
-            date: post.scheduledDate || post.createdAt,
+            date: post.scheduledDate || post.createdAt || post.date,
             platformColor: platformColors[post.platform.toLowerCase() as keyof typeof platformColors] || 'bg-gray-500'
           }))
           setTopPosts(postsData)
@@ -196,10 +218,6 @@ export default function AnalyticsPage() {
     if (growth > 0) return 'text-green-400 bg-green-500/20'
     if (growth < 0) return 'text-red-400 bg-red-500/20'
     return 'text-gray-400 bg-gray-500/20'
-  }
-
-  const getGrowthPercentage = (metric: string = 'totalEngagement') => {
-    return Math.abs(growthData[metric] || 0)
   }
 
   // Handle view all posts click

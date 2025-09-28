@@ -15,6 +15,8 @@ interface ScheduledPost {
   createdAt: Date;
 }
 
+type Platform = 'twitter' | 'linkedin' | 'instagram' | 'facebook';
+
 interface NewPostForm {
   content: string;
   platform: string;
@@ -41,7 +43,6 @@ export default function CalendarPage() {
     scheduledDate: '',
     scheduledTime: '12:00'
   });
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchScheduledPosts = async () => {
@@ -49,7 +50,15 @@ export default function CalendarPage() {
         const response = await scheduleAPI.getPosts();
         if (response.success) {
           // Transform the data to match our interface
-          const transformedPosts = response.posts.map((post: any) => ({
+          const transformedPosts = response.posts.map((post: {
+            _id: string;
+            platforms: string[];
+            content: string;
+            scheduledDate: string;
+            scheduledFor: string;
+            createdAt: string;
+            status: string;
+          }) => ({
             id: post._id,
             platform: post.platforms[0], // Take the first platform
             content: post.content,
@@ -62,8 +71,6 @@ export default function CalendarPage() {
         }
       } catch (error) {
         console.error('Failed to fetch scheduled posts:', error);
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -136,7 +143,7 @@ export default function CalendarPage() {
 
     const post: ScheduledPost = {
       id: Date.now().toString(),
-      platform: newPost.platform as any,
+      platform: newPost.platform as Platform,
       content: newPost.content,
       scheduledDate: newPost.scheduledDate,
       scheduledTime: newPost.scheduledTime,

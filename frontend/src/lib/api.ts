@@ -36,14 +36,6 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
   };
 
   try {
-    console.log('Making API request to:', url);
-    console.log('Request config:', {
-      method: config.method,
-      headers: config.headers,
-      body: config.body,
-      hasToken: !!getToken()
-    });
-    
     const response = await fetch(url, config);
     
     let data;
@@ -62,15 +54,7 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
       data = { message: 'Failed to parse server response' };
     }
     
-    console.log('API Response:', { 
-      status: response.status, 
-      statusText: response.statusText, 
-      data 
-    });
-    
     if (!response.ok) {
-      console.error('API Response not OK:', response.status, response.statusText);
-      console.error('Error details:', data);
       throw new Error(data.message || `HTTP ${response.status}: ${response.statusText}`);
     }
 
@@ -94,13 +78,10 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
 // Health check function for debugging
 export const testConnection = async () => {
   try {
-    console.log('Testing connection to:', API_BASE_URL);
     const response = await fetch(`${API_BASE_URL}/health`);
     const data = await response.json();
-    console.log('Health check response:', data);
     return data;
   } catch (error) {
-    console.error('Health check failed:', error);
     throw error;
   }
 };
@@ -175,7 +156,7 @@ export const userAPI = {
 // Posts API
 export const postsAPI = {
   getPosts: async (params?: { status?: string; platform?: string; limit?: number; offset?: number }) => {
-    const queryString = params ? '?' + new URLSearchParams(params as any).toString() : '';
+    const queryString = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
     return apiRequest(`/posts${queryString}`);
   },
 
@@ -234,7 +215,7 @@ export const analyticsAPI = {
   },
 
   getTopPosts: async (params?: { limit?: number; platform?: string; timeRange?: string }) => {
-    const queryString = params ? '?' + new URLSearchParams(params as any).toString() : '';
+    const queryString = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
     return apiRequest(`/analytics/top-posts${queryString}`);
   },
 };
@@ -249,7 +230,7 @@ export const scheduleAPI = {
     limit?: number;
     offset?: number;
   }) => {
-    const queryString = params ? '?' + new URLSearchParams(params as any).toString() : '';
+    const queryString = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
     return apiRequest(`/schedule/posts${queryString}`);
   },
 
@@ -272,7 +253,7 @@ export const scheduleAPI = {
   },
 
   getCalendar: async (params?: { month?: number; year?: number }) => {
-    const queryString = params ? '?' + new URLSearchParams(params as any).toString() : '';
+    const queryString = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
     return apiRequest(`/schedule/calendar${queryString}`);
   },
 };
@@ -280,7 +261,7 @@ export const scheduleAPI = {
 // Social API
 export const socialAPI = {
   getContentSuggestions: async (params?: { topic?: string; platform?: string; tone?: string }) => {
-    const queryString = params ? '?' + new URLSearchParams(params as any).toString() : '';
+    const queryString = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
     return apiRequest(`/social/content/suggestions${queryString}`);
   },
 
