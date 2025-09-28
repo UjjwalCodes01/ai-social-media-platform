@@ -4,6 +4,10 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
+// Validate environment variables
+const validateEnvironment = require('./utils/validateEnv');
+validateEnvironment();
+
 // Connect to database
 const connectDB = require('./config/database');
 connectDB();
@@ -23,10 +27,32 @@ const limiter = rateLimit({
 app.use('/api/', limiter);
 
 // CORS configuration
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
-}));
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // In production, only allow specific origins
+    const allowedOrigins = [
+      process.env.FRONTEND_URL,
+      'https://ai-social-media-platform.vercel.app', // Your Vercel app
+      'http://localhost:3000', // For local development
+      'https://localhost:3000',
+    ].filter(Boolean);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS blocked request from origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+};
+
+app.use(cors(corsOptions));
 
 // Body parser middleware
 app.use(express.json({ limit: '10mb' }));
@@ -63,9 +89,45 @@ app.use('/api/ai', aiRoutes);
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ 
-    status: 'OK', 
+    success: true, 
+    message: 'Server is running', 
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    version: require('./package.json').version,
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    services: {
+      database: process.env.MONGODB_URI ? 'configured' : 'not configured',
+      openai: process.env.OPENAI_API_KEY ? 'configured' : 'not configured',
+      twitter: process.env.TWITTER_API_KEY ? 'configured' : 'not configured',
+      linkedin: process.env.LINKEDIN_CLIENT_ID ? 'configured' : 'not configured'
+    }
+  });
+});
+
+// Detailed health check for monitoring
+app.get('/api/health/detailed', (req, res) => {
+  const mongoose = require('mongoose');
+  
+  res.json({
+    success: true,
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+    version: require('./package.json').version,
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    database: {
+      status: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+      host: mongoose.connection.host,
+      name: mongoose.connection.name
+    },
+    services: {
+      openai: !!process.env.OPENAI_API_KEY,
+      twitter: !!process.env.TWITTER_API_KEY,
+      linkedin: !!process.env.LINKEDIN_CLIENT_ID,
+      instagram: !!process.env.INSTAGRAM_APP_ID,
+      facebook: !!process.env.FACEBOOK_APP_ID
+    }
   });
 });
 
@@ -88,10 +150,44 @@ app.use('*', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(` Server running on port ${PORT}`);
-  console.log(` Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
-  console.log(` API Base URL: http://localhost:${PORT}/api`);
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🎯 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+  console.log(`📡 API Base URL: ${process.env.NODE_ENV === 'production' ? `https://your-app.onrender.com/api` : `http://localhost:${PORT}/api`}`);
+  console.log(`✅ Database: ${process.env.MONGODB_URI ? 'Connected' : 'Not configured'}`);
+  console.log(`🤖 OpenAI: ${process.env.OPENAI_API_KEY ? 'Configured' : 'Not configured'}`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received. Shutting down gracefully...');
+  server.close(() => {
+    console.log('Process terminated');
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received. Shutting down gracefully...');
+  server.close(() => {
+    console.log('Process terminated');
+  });
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err, promise) => {
+  console.log('Unhandled Promise Rejection: ', err.message);
+  // Close server & exit process
+  server.close(() => {
+    process.exit(1);
+  });
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.log('Uncaught Exception: ', err.message);
+  console.log('Shutting down...');
+  process.exit(1);
 });
 
 module.exports = app;
