@@ -8,7 +8,7 @@
     }
   ],
   "env": {
-    "NEXT_PUBLIC_API_URL": "@api-url"
+    "NEXT_PUBLIC_API_URL": "https://your-backend-domain.com/api"
   },
   "functions": {
     "pages/api/**/*.js": {
