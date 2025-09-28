@@ -8,8 +8,8 @@ class AIService {
 
   async generateContent(prompt, platform = 'general', contentType = 'text') {
     try {
-      if (!this.apiKey) {
-        throw new Error('OpenAI API key not configured. Please add OPENAI_API_KEY to your environment variables.');
+      if (!this.apiKey || this.apiKey.includes('your-openai-api-key') || this.apiKey === 'your-openai-api-key-here') {
+        throw new Error('❌ OpenAI API key not properly configured. Please:\n1. Get your API key from https://platform.openai.com/account/api-keys\n2. Replace OPENAI_API_KEY in your .env file with the actual key\n3. Restart the server');
       }
 
       // Create platform-specific context

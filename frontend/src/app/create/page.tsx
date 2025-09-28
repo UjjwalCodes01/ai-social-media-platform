@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { useAuth } from '@/lib/auth';
 import { aiAPI } from '@/lib/api';
 
 interface Message {
@@ -27,6 +28,7 @@ const suggestedPrompts = [
 ];
 
 export default function CreateContentPage() {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -63,6 +65,27 @@ export default function CreateContentPage() {
     setIsLoading(true);
 
     try {
+      // Debug: Check if user is authenticated
+      console.log('User authenticated:', !!user);
+      console.log('User details:', user);
+      console.log('Sending prompt:', userMessage.content);
+      
+      // Check if we have a token
+      const token = localStorage.getItem('token');
+      console.log('Token exists:', !!token);
+      if (token) {
+        console.log('Token preview:', token.substring(0, 20) + '...');
+      }
+      
+      // Test backend connectivity first
+      try {
+        const healthResponse = await fetch('http://localhost:5000/api/health');
+        const healthData = await healthResponse.json();
+        console.log('Backend health check:', healthData);
+      } catch (healthError) {
+        console.error('Backend unreachable:', healthError);
+      }
+      
       // Call real AI API for content generation
       const response = await aiAPI.generateContent(userMessage.content, 'general');
       
@@ -86,10 +109,15 @@ export default function CreateContentPage() {
       
     } catch (error) {
       console.error('Error generating content:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        content: error instanceof Error ? error.message : 'Sorry, I encountered an error while generating content. Please try again.',
+        content: `Sorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);

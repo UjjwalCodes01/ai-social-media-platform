@@ -36,8 +36,14 @@ router.post('/generate-content', authenticateToken, [
   body('contentType').optional().isIn(['text', 'image', 'video']).withMessage('Invalid content type')
 ], async (req, res) => {
   try {
+    console.log('🔍 AI Generate Content Request:');
+    console.log('- User ID:', req.userId);
+    console.log('- Request Body:', req.body);
+    console.log('- Headers:', req.headers);
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('❌ Validation errors:', errors.array());
       return res.status(400).json({
         success: false,
         message: 'Validation errors',

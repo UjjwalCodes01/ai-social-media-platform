@@ -37,15 +37,40 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
 
   try {
     console.log('Making API request to:', url);
+    console.log('Request config:', {
+      method: config.method,
+      headers: config.headers,
+      body: config.body,
+      hasToken: !!getToken()
+    });
+    
     const response = await fetch(url, config);
+    
+    let data;
+    const contentType = response.headers.get('content-type');
+    
+    try {
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const textData = await response.text();
+        console.error('Non-JSON response:', textData);
+        data = { message: textData || 'Invalid response format' };
+      }
+    } catch (parseError) {
+      console.error('Failed to parse response:', parseError);
+      data = { message: 'Failed to parse server response' };
+    }
+    
+    console.log('API Response:', { 
+      status: response.status, 
+      statusText: response.statusText, 
+      data 
+    });
     
     if (!response.ok) {
       console.error('API Response not OK:', response.status, response.statusText);
-    }
-    
-    const data = await response.json();
-
-    if (!response.ok) {
+      console.error('Error details:', data);
       throw new Error(data.message || `HTTP ${response.status}: ${response.statusText}`);
     }
 
